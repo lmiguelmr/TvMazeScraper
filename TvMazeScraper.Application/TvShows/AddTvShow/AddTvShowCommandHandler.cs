@@ -36,13 +36,8 @@ internal sealed class AddTvShowCommandHandler : ICommandHandler<AddTvShowCommand
             var castMembersIds = castMembers.Select(cm => cm.Id).ToList();
 
             // Use separate scopes for each repository operation to avoid concurrent access issues
-            var existingCastMembersTask = Task.Run(() => _castMemberRepository.GetAllByIdAsync(castMembersIds, cancellationToken));
-            var tvShowTask = Task.Run(() => _tvShowRepository.GetById(command.Id, cancellationToken));
-
-            await Task.WhenAll(existingCastMembersTask, tvShowTask);
-
-            var existingCastMembers = await existingCastMembersTask;
-            var tvShow = await tvShowTask;
+            var existingCastMembers = await _castMemberRepository.GetAllByIdAsync(castMembersIds, cancellationToken);
+            var tvShow = await _tvShowRepository.GetById(command.Id, cancellationToken);
 
             var newCastMembers = castMembers.Where(c => !existingCastMembers.Any(x => c.Id == x.Id)).ToList();
 
