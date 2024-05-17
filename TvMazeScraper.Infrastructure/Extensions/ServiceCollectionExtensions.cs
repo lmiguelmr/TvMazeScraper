@@ -5,10 +5,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TvMazeScraper.Application.Abstractions.Data;
 using TvMazeScraper.Domain.Abstractions;
 using TvMazeScraper.Domain.CastMembers;
-using TvMazeScraper.Domain.JointTables;
 using TvMazeScraper.Domain.TvShows;
+using TvMazeScraper.Infrastructure.Data;
 using TvMazeScraper.Infrastructure.Persistence;
 using TvMazeScraper.Infrastructure.Repositories;
 using TvMazeScraper.Infrastructure.TvMazeIntegration;
@@ -37,6 +38,7 @@ public static class ServiceCollectionExtensions
 
         var connectionString = configuration.GetConnectionString("Database") ??
                        throw new ArgumentNullException(nameof(configuration));
+
         services.AddDbContext<ApplicationDbContext>(options =>
             options
                 .LogTo(Console.WriteLine, LogLevel.Information)
@@ -44,13 +46,14 @@ public static class ServiceCollectionExtensions
                 .UseSqlServer(connectionString, b => b.MigrationsAssembly("TvMazeScraper.Api"))
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
+        services.AddSingleton<ISqlConnectionFactory>(_ =>
+            new SqlConnectionFactory(connectionString));
+
         services.AddScoped<IUnitOfWork, UnitOfWorkManager>();
 
         services.AddScoped<ICastMemberRepository, CastMemberRepository>();
 
         services.AddScoped<ITvShowRepository, TvShowRepository>();
-
-        services.AddScoped<ITvShowCastMemberRepository, TvShowCastMemberRepository>();
 
         services.AddScoped<ITvMazeApiClient, TvMazeApiClient>();
 
@@ -89,5 +92,6 @@ public static class ServiceCollectionExtensions
 
         services.AddHangfireServer();
 
+        services.AddScoped<ITvMazeJobs, TvMazeJobs>();
     }
 }

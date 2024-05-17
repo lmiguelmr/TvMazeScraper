@@ -8,43 +8,31 @@ namespace TvMazeScraper.Infrastructure.Repositories;
 internal sealed class CastMemberRepository : ICastMemberRepository
 {
     private readonly ApplicationDbContext _context;
-    private readonly IUnitOfWork _uowManager;
 
     public CastMemberRepository(ApplicationDbContext context, IUnitOfWork uowManager)
     {
         _context = context;
-        _uowManager = uowManager;
     }
 
-    public async Task<IEnumerable<CastMember>> GetAllAsync(IEnumerable<int> castMemberIds, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<CastMember>> GetAllByIdAsync(IEnumerable<int> castMemberIds, CancellationToken cancellationToken = default)
+    {
+        return await _context.CastMembers
+            .Where(c => castMemberIds.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<int>> GetAllIdsAsync(IEnumerable<int> castMemberIds, CancellationToken cancellationToken = default)
     {
         return await _context.CastMembers
             .Where(castMember => castMemberIds.Contains(castMember.Id))
-            .OrderBy(castMember => castMember.Birthday)
+            .Select(castMember => castMember.Id)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task AddNewCastMembersAsync(IEnumerable<CastMember> castMembers, CancellationToken cancellationToken = default)
+    public async Task AddAsync(IEnumerable<CastMember> castMember, CancellationToken cancellationToken = default)
     {
-        var existingCastMemberIds = await _context.CastMembers
-            .Where(castMember => castMembers.Select(c => c.Id).Contains(castMember.Id))
-            .Select(castMember => castMember.Id)
-            .ToListAsync(cancellationToken);
-
-        // Filter out the cast members that already exist in the database
-        var newCastMembers = castMembers
-            .Where(c => !existingCastMemberIds.Contains(c.Id))
-            .ToList();
-
-        // If there are new cast members to add, retrieve their details and add them to the database
-        if (newCastMembers.Count != 0)
-        {
-            await _context.CastMembers.AddRangeAsync(newCastMembers, cancellationToken);
-
-            if (!_uowManager.IsUnitOfWorkStarted)
-            {
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }
+        await _context.CastMembers
+            .AddRangeAsync(castMember, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

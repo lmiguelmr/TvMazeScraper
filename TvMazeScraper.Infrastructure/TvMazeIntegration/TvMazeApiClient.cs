@@ -37,7 +37,7 @@ public class TvMazeApiClient : ITvMazeApiClient
                 throw new HttpRequestException(errorMessage);
             }
 
-            string content = await response.Content.ReadAsStringAsync();
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
 
             return JsonConvert.DeserializeObject<T>(content);
         }

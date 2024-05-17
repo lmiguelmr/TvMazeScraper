@@ -1,59 +1,74 @@
-﻿using TvMazeScraper.Application.Abstractions.Messaging;
+﻿using System.Data;
+using TvMazeScraper.Application.Abstractions.Data;
+using TvMazeScraper.Application.Abstractions.Messaging;
 using TvMazeScraper.Domain.Abstractions;
 using TvMazeScraper.Domain.CastMembers;
-using TvMazeScraper.Domain.JointTables;
 using TvMazeScraper.Domain.TvShows;
 
 namespace TvMazeScraper.Application.TvShows.AddTvShow;
 
 internal sealed class AddTvShowCommandHandler : ICommandHandler<AddTvShowCommand>
 {
+    private readonly ISqlConnectionFactory _dbConnection;
     private readonly ITvShowRepository _tvShowRepository;
     private readonly ICastMemberRepository _castMemberRepository;
-    private readonly ITvShowCastMemberRepository _tvShowCastMemberRepository;
-    private readonly IUnitOfWork _uowManager;
 
     public AddTvShowCommandHandler(
+        ISqlConnectionFactory dbConnection,
         ITvShowRepository tvShowRepository,
-        ICastMemberRepository castMemberRepository,
-        ITvShowCastMemberRepository tvShowCastMemberRepository,
-        IUnitOfWork uowManager)
+        ICastMemberRepository castMemberRepository)
     {
+        _dbConnection = dbConnection;
         _tvShowRepository = tvShowRepository;
         _castMemberRepository = castMemberRepository;
-        _tvShowCastMemberRepository = tvShowCastMemberRepository;
-        _uowManager = uowManager;
     }
+
     public async Task<Result> Handle(AddTvShowCommand command, CancellationToken cancellationToken)
     {
+        using IDbConnection connection = _dbConnection.CreateConnection();
+        using IDbTransaction transaction = connection.BeginTransaction();
+
         try
         {
-            _uowManager.StartUnitOfWork();
+            var castMembers = command.CastMembers
+                                     .Select(c => CastMember.CreateCastMember(c.Id, c.Name, c.Birthday))
+                                     .ToList();
+            var castMembersIds = castMembers.Select(cm => cm.Id).ToList();
 
-            var tvShow = await _tvShowRepository.Add(TvShow.CreateTvShow(command.Id, command.Name));
+            // Use separate scopes for each repository operation to avoid concurrent access issues
+            var existingCastMembersTask = Task.Run(() => _castMemberRepository.GetAllByIdAsync(castMembersIds, cancellationToken));
+            var tvShowTask = Task.Run(() => _tvShowRepository.GetById(command.Id, cancellationToken));
 
-            var castMembersIds = command.CastMembers.Select(c => new CastMember(c.Id, c.Name, c.Birthday));
-            await _castMemberRepository.AddNewCastMembersAsync(castMembersIds, cancellationToken);
+            await Task.WhenAll(existingCastMembersTask, tvShowTask);
 
-            var tvShowCastMembers = command.CastMembers.Select(c => new TvShowCastMember { TvShowId = tvShow.Id, CastMemberId = c.Id });
+            var existingCastMembers = await existingCastMembersTask;
+            var tvShow = await tvShowTask;
 
-            var tvShowCastMembersToAdd = new List<TvShowCastMember>();
-            foreach (var tvShowCastMember in tvShowCastMembers)
+            var newCastMembers = castMembers.Where(c => !existingCastMembers.Any(x => c.Id == x.Id)).ToList();
+
+            if (tvShow == null)
             {
-                var existingRelation = await _tvShowCastMemberRepository.ExistsAsync(tvShowCastMember.TvShowId, tvShowCastMember.CastMemberId, cancellationToken);
+                tvShow = TvShow.CreateTvShow(command.Id, command.Name, newCastMembers);
 
-                if (!existingRelation)
-                    tvShowCastMembersToAdd.Add(tvShowCastMember);
+                await _tvShowRepository.AddAsync(tvShow, cancellationToken);
+                await _tvShowRepository.AddRelation(tvShow.Id, castMembersIds, cancellationToken);
+            }
+            else
+            {
+                if (newCastMembers.Count != 0)
+                {
+                    await _castMemberRepository.AddAsync(newCastMembers, cancellationToken);
+                }
+
+                await _tvShowRepository.AddMissingCastMembersRelation(tvShow.Id, castMembersIds, cancellationToken);
             }
 
-            await _tvShowCastMemberRepository.AddRange(tvShowCastMembersToAdd, cancellationToken);
-
-            await _uowManager.SaveChangesAsync(cancellationToken);
-
+            transaction.Commit();
             return Result.Success();
         }
         catch (Exception ex)
         {
+            transaction.Rollback();
             return Result.Failure<Guid>(TvShowErrors.UnknownError);
         }
     }

@@ -22,6 +22,21 @@ namespace TvMazeScraper.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("CastMemberTvShow", b =>
+                {
+                    b.Property<int>("CastMembersId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TvShowId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CastMembersId", "TvShowId");
+
+                    b.HasIndex("TvShowId");
+
+                    b.ToTable("CastMemberTvShow");
+                });
+
             modelBuilder.Entity("TvMazeScraper.Domain.CastMembers.CastMember", b =>
                 {
                     b.Property<int>("Id")
@@ -40,19 +55,6 @@ namespace TvMazeScraper.Api.Migrations
                     b.ToTable("CastMembers", (string)null);
                 });
 
-            modelBuilder.Entity("TvMazeScraper.Domain.JointTables.TvShowCastMember", b =>
-                {
-                    b.Property<int>("TvShowId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CastMemberId")
-                        .HasColumnType("int");
-
-                    b.HasKey("TvShowId", "CastMemberId");
-
-                    b.ToTable("TvShowCastMembers", (string)null);
-                });
-
             modelBuilder.Entity("TvMazeScraper.Domain.TvShows.TvShow", b =>
                 {
                     b.Property<int>("Id")
@@ -66,6 +68,21 @@ namespace TvMazeScraper.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TvShows", (string)null);
+                });
+
+            modelBuilder.Entity("CastMemberTvShow", b =>
+                {
+                    b.HasOne("TvMazeScraper.Domain.CastMembers.CastMember", null)
+                        .WithMany()
+                        .HasForeignKey("CastMembersId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TvMazeScraper.Domain.TvShows.TvShow", null)
+                        .WithMany()
+                        .HasForeignKey("TvShowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

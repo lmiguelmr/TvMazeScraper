@@ -1,26 +1,32 @@
 ﻿using TvMazeScraper.Domain.Abstractions;
+using TvMazeScraper.Domain.CastMembers;
 
 namespace TvMazeScraper.Domain.TvShows;
-public sealed class TvShow : Entity
+public class TvShow : Entity
 {
     public TvShow(
         int id,
-        string name)
+        string name,
+        List<CastMember> castMembers)
         : base(id)
     {
         Name = name;
+        CastMembers = castMembers;
     }
 
-    private TvShow()
+    public TvShow()
     {
     }
 
     public string Name { get; private set; }
 
+    public List<CastMember> CastMembers { get; set; } = [];
+
     public static TvShow CreateTvShow(
         int id,
-        string name)
+        string name,
+        List<CastMember> castMembers)
     {
-        return new TvShow(id, name);
+        return new TvShow(id, name, castMembers);
     }
 }

@@ -1,32 +1,31 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
 using TvMazeScraper.Domain.CastMembers;
-using TvMazeScraper.Domain.JointTables;
 using TvMazeScraper.Domain.TvShows;
-using TvMazeScraper.Infrastructure.Persistence.Configurations;
 
 namespace TvMazeScraper.Infrastructure.Persistence;
 
-public class ApplicationDbContext : DbContext
+public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    : DbContext(options)
 {
-    public ApplicationDbContext()
-    {
-    }
+    public DbSet<TvShow> TvShows { get; set; } = null!;
 
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-        : base(options)
-    {
-    }
-
-    public virtual DbSet<TvShow> TvShows { get; set; } = null!;
-    public virtual DbSet<CastMember> CastMembers { get; set; } = null!;
-    public virtual DbSet<TvShowCastMember> TvShowCastMembers { get; set; } = null!;
+    public DbSet<CastMember> CastMembers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfiguration(new CastMemberConfiguration());
-        modelBuilder.ApplyConfiguration(new TvShowCastMemberConfiguration());
-        modelBuilder.ApplyConfiguration(new TvShowConfiguration());
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        modelBuilder.Entity<TvShow>()
+                    .HasMany(e => e.CastMembers)
+                    .WithMany();
 
         base.OnModelCreating(modelBuilder);
+    }
+
+    public async Task<IDbTransaction> BeginTranscationAsync()
+    {
+        return (await Database.BeginTransactionAsync()).GetDbTransaction();
     }
 }

@@ -9,6 +9,7 @@ using Polly.Contrib.WaitAndRetry;
 using Serilog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
+using Asp.Versioning.ApiExplorer;
 
 IWebHostEnvironment? hostEnvironment = null;
 
@@ -44,6 +45,8 @@ try
 
     var app = builder.Build();
 
+   app.UseBackGroundJobs();
+
     if (app.Environment.IsDevelopment())
     {
         app.UseSwagger();
@@ -51,12 +54,19 @@ try
         {
             var descriptions = app.DescribeApiVersions();
 
-            foreach (var description in descriptions)
+            foreach (ApiVersionDescription description in descriptions)
             {
                 var url = $"/swagger/{description.GroupName}/swagger.json";
                 var name = description.GroupName.ToUpperInvariant();
+
                 options.SwaggerEndpoint(url, name);
             }
+        });
+
+        app.UseHangfireDashboard(options: new DashboardOptions
+        {
+            Authorization = [],
+            DarkModeEnabled = true,
         });
 
         app.ApplyMigrations();
@@ -73,8 +83,6 @@ try
     app.UseHangfireDashboard();
     app.UseHangfireServer();
 
-    RecurringJob.AddOrUpdate<TvMazeJobs>($"{typeof(TvMazeJobs).Name}.ImportAll()", x => x.ImportAll(null!), Cron.Never);
-    RecurringJob.AddOrUpdate<TvMazeJobs>($"{typeof(TvMazeJobs).Name}.Update()", x => x.Update(null!), Cron.Daily);
 
     Log.Information("Started {Application} in {Environment} mode",
         hostEnvironment.ApplicationName, hostEnvironment.EnvironmentName);
